@@ -67,11 +67,13 @@ $output = new SplFileObject($output_file, 'w');
 // between unix epoch and NSDate reference as per
 // http://developer.apple.com/documentation/Cocoa/Reference/Foundation/Classes/NSDate_Class/Reference/Reference.html
 foreach ($db->query($query) as $row) {
+    $timestamp = $row['ZDATE'] + 978307200.0;
     $transaction = array();
     $transaction['account']     = $row['ZACCOUNTNAME'];
-    $transaction['date']        = date('Y-m-d', $row['ZDATE'] + 978307200.0);
+    $transaction['date']        = date('Y-m-d', $timestamp);
+    $transaction['year']        = date('Y', $timestamp); 
     $transaction['description'] = trim($row['ZTRANSACTIONDESCRIPTION']);
-    $transaction['amount']      = number_format($row['ZAMOUNT'], 2);
+    $transaction['amount']      = number_format($row['ZAMOUNT'], 2, ',', ' ');
     $transaction['category']    = $row['category'];
     $output->fwrite((implode(';', $transaction) . "\n"));
 }
