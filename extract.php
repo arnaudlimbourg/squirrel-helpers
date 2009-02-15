@@ -47,6 +47,10 @@ if (file_exists($output_file)) {
     bail("Output file already exists, please delete it first");
 }
 
+if (file_exists('expenses.php')) {
+    include 'expenses.php';
+}
+
 $db = new pdo('sqlite:' . $database_file);
 
 $query = 'select
@@ -68,14 +72,32 @@ $output = new SplFileObject($output_file, 'w');
 // http://developer.apple.com/documentation/Cocoa/Reference/Foundation/Classes/NSDate_Class/Reference/Reference.html
 foreach ($db->query($query) as $row) {
     $timestamp = $row['ZDATE'] + 978307200.0;
-    $transaction = array();
-    $transaction['account']     = $row['ZACCOUNTNAME'];
-    $transaction['date']        = date('Y-m-d', $timestamp);
-    $transaction['year']        = date('Y', $timestamp); 
-    $transaction['description'] = trim($row['ZTRANSACTIONDESCRIPTION']);
-    $transaction['amount']      = number_format($row['ZAMOUNT'], 2, ',', ' ');
-    $transaction['category']    = $row['category'];
+    $transaction = array(
+        'account'     => $row['ZACCOUNTNAME'],
+        'date'        => date('Y-m-d', $timestamp),
+        'year'        => date('Y', $timestamp), 
+        'description' => trim($row['ZTRANSACTIONDESCRIPTION']),
+        'amount'      => number_format($row['ZAMOUNT'], 2, ',', ' '),
+        'category'    => $row['category'],
+    );
     $output->fwrite((implode(';', $transaction) . "\n"));
+}
+
+$last_day = date('d', $timestamp);
+$last_month = date('m', $timestamp);
+
+foreach ($expenses_monthly as $day => $amount) {
+    if ($day >= $last_day) {
+        $transaction = array(
+            'account'     => '',
+            'date'        => $day,
+            'year'        => date('Y'), 
+            'description' => 'planned expense',
+            'amount'      => number_format($amount, 2, ',', ' '),
+            'category'    => 'planned expense',
+        );
+        $output->fwrite((implode(';', $transaction) . "\n"));
+    }
 }
 
 function bail($msg = '')
