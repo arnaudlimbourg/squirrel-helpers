@@ -109,7 +109,6 @@ class CMBSquirrel
     public function extractAndForecast($account, $plannedExpenses)
     {
         $transactions = $this->loadTransactions($account);
-        $res = array();
         $last_transaction = end($transactions);
         $last_ts = strtotime($last_transaction['date']);
         $last_day = date('d', $last_ts);
@@ -118,7 +117,7 @@ class CMBSquirrel
         foreach ($plannedExpenses as $day => $info) {
             $day = str_pad($day, 2, 0, STR_PAD_LEFT);
             if ($day >= $last_day) {
-                $res[] = array(
+                $transactions[] = array(
                     'account'     => $last_transaction['account'],
                     'date'        => date("Y-m-$day"),
                     'year'        => $year,
@@ -129,7 +128,7 @@ class CMBSquirrel
                 );
             }
         }
-        return $res;
+        return $transactions;
     }
 }
 

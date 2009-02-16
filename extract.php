@@ -27,83 +27,57 @@ if (count($argv) === 1) {
     bail();
 }
 
-if (empty($argv[1])) {
-    bail();
-} else {
-    $database_file = $argv[1];
+$options = getopt('d:la::f::o::');
+
+include 'squirrel.php';
+
+if (array_key_exists('d', $options) === false) {
+    bail('Please indicate database with the -d flag');
 }
 
-if (empty($argv[2])) {
-    bail();
-} else {
-    $output_file = $argv[2];
-}
-   
-if (!file_exists($database_file)) {
-    bail("Cannot find database file");
+try {
+    $squirrel = new CMBSquirrel($options['d']);
+} catch (Exception $e) {
+    bail('Cannot initialize: ' . $e->getMessage());
 }
 
-if (file_exists($output_file)) {
-    bail("Output file already exists, please delete it first");
-}
-
-if (file_exists('expenses.php')) {
-    include 'expenses.php';
-}
-
-$db = new pdo('sqlite:' . $database_file);
-
-$query = 'select
-            ztransaction.z_pk, zaccount.zaccountname, zcategory, zdate, zamount,
-            zcategory.zname as category, ztransactiondescription
-          from
-            ztransaction, zaccount, zcategory
-          where
-            ztransaction.zaccount=zaccount.z_pk
-          and
-            ztransaction.zcategory=zcategory.z_pk
-          order by
-            ztransaction.zaccount, ztransaction.zdate'; 
-
-$output = new SplFileObject($output_file, 'w');
-
-// when parsing the date we need to add the number of seconds
-// between unix epoch and NSDate reference as per
-// http://developer.apple.com/documentation/Cocoa/Reference/Foundation/Classes/NSDate_Class/Reference/Reference.html
-foreach ($db->query($query) as $row) {
-    $timestamp = $row['ZDATE'] + 978307200.0;
-    $transaction = array(
-        'account'     => $row['ZACCOUNTNAME'],
-        'date'        => date('Y-m-d', $timestamp),
-        'year'        => date('Y', $timestamp), 
-        'description' => trim($row['ZTRANSACTIONDESCRIPTION']),
-        'amount'      => number_format($row['ZAMOUNT'], 2, ',', ' '),
-        'category'    => $row['category'],
-    );
-    $output->fwrite((implode(';', $transaction) . "\n"));
-}
-
-$last_day = date('d', $timestamp);
-$last_month = date('m', $timestamp);
-
-foreach ($expenses_monthly as $day => $amount) {
-    if ($day >= $last_day) {
-        $transaction = array(
-            'account'     => '',
-            'date'        => $day,
-            'year'        => date('Y'), 
-            'description' => 'planned expense',
-            'amount'      => number_format($amount, 2, ',', ' '),
-            'category'    => 'planned expense',
-        );
-        $output->fwrite((implode(';', $transaction) . "\n"));
+if (array_key_exists('l', $options)) {
+    foreach ($squirrel->listAccounts() as $id => $name) {
+        echo 'Account ID: ', $id, ' - ', $name, "\n";
     }
+    exit(0);
+}
+
+if (array_key_exists('a', $options)
+        && array_key_exists('f', $options)) {
+    if (file_exists($options['f']) === false) {
+        bail('The file containing your forecast expenses does not exists');
+    }
+    include $options['f'];
+    $transactions = $squirrel->extractAndForecast($options['a'], $expenses_monthly);
+} else {
+    $transactions = $squirrel->loadTransactions();
+}
+
+if (array_key_exists('o', $options)) {
+    $squirrel->setOutputFile($options['o']);
+    $squirrel->saveToFile($transactions);
+} else {
+    bail('Please indicate the output file name with the -o flag');
 }
 
 function bail($msg = '')
 {
     if (empty($msg)) {
-        echo "Usage: php extract.php /path/to/database path/to/extract_file\n";
+        echo "
+Usage:
+    php extract.php -d/path/to/database
+    php extract.php -l -d/path/to/database # list accounts
+    php extract.php -l -oextract.csv -d/path/to/database
+    php extract.php -l -aACCOUNTID -oextract.csv -d/path/to/database
+
+Examples:
+    php extract.php -a3 -fexpenses.php -ofoo.csv -ddatabase.squirrel #extracts transactions for account 3, from the list accounts";
     } else {
         echo "$msg\n";
     }
